@@ -39,7 +39,8 @@ services:
     command: >
       bash -c "python -m alembic upgrade head && 
                python -m app.etl.process_earthquake_data && 
-               python -m app.etl.load_data"
+               python -m app.etl.load_data &&
+               python -m app.etl.transform_data"
 
 volumes:
   postgres_data:

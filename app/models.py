@@ -1,4 +1,12 @@
-from sqlalchemy import Column, Integer, String, Float, BigInteger, create_engine
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    BigInteger,
+    DateTime,
+    func,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from dotenv import load_dotenv
 
@@ -23,3 +31,19 @@ class Earthquake(Base):
 
     def __repr__(self):
         return f"<Earthquake(time={self.time}, place='{self.place}', magnitude={self.magnitude})>"
+
+
+class StageEarthquake(Base):
+    __tablename__ = "stage_earthquakes"
+
+    id = Column(Integer, primary_key=True)
+    dt = Column(DateTime, index=True)
+    region = Column(String(255))
+    place = Column(String(255))
+    magnitude = Column(Float)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    created_at = Column(DateTime, default=func.now())
+
+    def __repr__(self):
+        return f"<StageEarthquake(dt={self.dt}, place='{self.place}', magnitude={self.magnitude})>"
