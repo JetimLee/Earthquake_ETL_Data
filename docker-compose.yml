@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: earthquake_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=earthquake_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  etl_app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: earthquake_etl
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=earthquake_db
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - POETRY_VIRTUALENVS_CREATE=false
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    command: >
+      bash -c "python -m alembic upgrade head && 
+               python -m app.etl.process_earthquake_data && 
+               python -m app.etl.load_data"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "analyst-builder-pipelines"
+version = "0.1.0"
+description = "ETL pipeline for earthquake data"
+authors = ["Gavin"]
+# Use package-mode = false instead of packages declaration
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32.3"
+pandas = "^2.2.3"
+psycopg2 = "^2.9.10"
+alembic = "^1.15.2"
+python-dotenv = "^1.0.0"  # Keep only this one, not dotenv
+sqlalchemy = "^2.0.23"
+numpy = "^1.26.3"
+pytz = "^2024.1"
+colorama = "^0.4.6"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.9.1"
+pytest = "^7.4.0"
+ipython = "^8.15.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
