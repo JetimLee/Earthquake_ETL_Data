@@ -4,16 +4,17 @@ services:
   postgres:
     image: postgres:14-alpine
     container_name: earthquake_db
+    env_file: .env
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=earthquake_db
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -26,13 +27,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file: .env
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=earthquake_db
-      - DB_USER=postgres
-      - DB_PASS=postgres
+      - DB_HOST=postgres # Override DB_HOST to use the service name
       - POETRY_VIRTUALENVS_CREATE=false
       - PYTHONPATH=/app
+      # DB_NAME, DB_USER, DB_PASS are loaded from .env file
     volumes:
       - .:/app
       - ./data:/app/data
