@@ -1,53 +1,57 @@
-# Earthquake ETL Pipeline
+# Earthquake Data Pipeline
 
-An ETL (Extract, Transform, Load) pipeline for collecting earthquake data from the USGS API and storing it in a PostgreSQL database. This project demonstrates a production-ready data pipeline using modern Python tools and containerization.
+A comprehensive data pipeline for processing, analyzing, and visualizing earthquake data using Apache Airflow and PostgreSQL. This project extracts earthquake data from the USGS API, transforms it, and loads it into a PostgreSQL database for analysis and visualization.
 
 ## Features
 
 - **Data Extraction**: Fetches earthquake data from the USGS Earthquake API
-- **Data Transformation**: Processes and prepares earthquake data for storage
+- **Data Transformation**: Processes and prepares earthquake data for storage and analysis
 - **Data Loading**: Stores processed data in PostgreSQL database
+- **Workflow Orchestration**: Uses Apache Airflow to manage the ETL workflow (optional)
+- **Data Visualization**: Serves generated visualizations through a web server
 - **Database Migrations**: Uses Alembic for schema versioning and migration
 - **Containerization**: Dockerized setup for consistent deployment
 - **Dependency Management**: Uses Poetry for Python dependency management
 
-## Prerequisites
+## Requirements
 
-- Docker and Docker Compose
+- Docker and Docker Compose (v2 or later)
+- Git
 - Poetry (for local development)
 - Python 3.12+
-- Git
+- `.env` file with configuration (see below)
 
-## Quick Start with Docker
+## Quick Start
 
-The easiest way to run the pipeline is with Docker:
+### Option 1: Run with Airflow (Recommended)
 
 ```bash
-# Clone the repository
-git clone
-cd analyst-builder-pipelines
+# Start the Airflow services
+docker-compose -f docker-compose-airflow.yml up -d
 
-# Start the pipeline
-docker-compose up -d
-
-# Check the logs
-docker-compose logs -f
+# Wait for services to initialize
+# Access Airflow web UI at http://localhost:8080
+# Default credentials: admin/admin (configurable in .env)
 ```
 
-This will:
+### Option 2: Run Standalone ETL
 
-1. Start a PostgreSQL database
-2. Run database migrations
-3. Fetch earthquake data from USGS
-4. Load the data into PostgreSQL
+```bash
+# Start the standalone ETL process
+docker-compose up -d
 
-## Local Development Setup
+# This will:
+# 1. Initialize the database
+# 2. Process earthquake data from USGS API
+# 3. Load data into PostgreSQL
+# 4. Transform the data
+```
 
-To set up the project for local development:
+### Option 3: Local Development Setup
 
 ```bash
 # Clone the repository
-git clone
+git clone <repository-url>
 cd analyst-builder-pipelines
 
 # Install dependencies with Poetry
@@ -66,52 +70,79 @@ poetry run python -m alembic upgrade head
 # Run the ETL process
 poetry run python -m app.etl.process_earthquake_data
 poetry run python -m app.etl.load_data
+poetry run python -m app.etl.transform_data
 ```
+
+## Environment Configuration
+
+Create a `.env` file in the project root with the following variables:
+
+```
+# Database Configuration
+DB_HOST=localhost     # Use 'postgres' for Docker setups
+DB_NAME=earthquake_db
+DB_USER=postgres
+DB_PASS=postgres
+DB_PORT=5432
+
+# Airflow Configuration (for Airflow setup only)
+AIRFLOW_USER=admin
+AIRFLOW_PASS=admin
+AIRFLOW_DB_USER=airflow
+AIRFLOW_DB_PASS=airflow
+
+# Processing Configuration
+PROCESS_DAYS=15  # Number of days of earthquake data to process
+```
+
+An `.env.example` file is included in the repository that you can copy and modify.
 
 ## Project Structure
 
 ```
-analyst-builder-pipelines/
-├── alembic/              # Database migration scripts
-│   ├── versions/         # Migration version files
-│   └── env.py            # Alembic environment config
-├── app/                  # Application code
-│   ├── etl/              # ETL process modules
-│   │   ├── process_earthquake_data.py  # Data extraction and transformation
-│   │   └── load_data.py  # Data loading to PostgreSQL
-│   └── models.py         # SQLAlchemy database models
-├── data/                 # Directory for processed data files (not in Git)
-├── docker/               # Docker configuration
-│   ├── Dockerfile        # Application Dockerfile
-│   └── entrypoint.sh     # Docker entry point script
-├── .env                  # Environment variables (not in Git)
-├── .env.example          # Example environment variables
-├── .gitignore            # Git ignore file
-├── alembic.ini           # Alembic configuration
-├── docker-compose.yml    # Docker Compose configuration
-├── pyproject.toml        # Poetry project definition
-└── README.md             # This file
+earthquake-data-pipeline/
+├── alembic/                  # Database migration scripts
+│   ├── versions/             # Migration version files
+│   └── env.py                # Alembic environment config
+├── alembic.ini               # Alembic configuration
+├── app/                      # ETL application code
+│   ├── etl/                  # ETL processing scripts
+│   │   ├── process_earthquake_data.py  # Data extraction from USGS API
+│   │   ├── load_data.py      # Data loading to PostgreSQL
+│   │   └── transform_data.py # Data transformation logic
+│   └── models.py             # SQLAlchemy database models
+├── dags/                     # Airflow DAG definitions
+├── data/                     # Data storage (not in Git)
+│   └── visualizations/       # Generated visualizations
+├── docker/                   # Docker configuration
+│   ├── Dockerfile            # ETL application Dockerfile
+│   └── Dockerfile.airflow    # Airflow Dockerfile
+├── init-multiple-dbs.sh      # Database initialization script
+├── logs/                     # Airflow logs
+├── plugins/                  # Airflow plugins
+├── docker-compose.yml        # Standalone ETL Docker Compose
+├── docker-compose-airflow.yml # Airflow Docker Compose
+├── pyproject.toml            # Poetry project definition
+├── .env                      # Environment variables (not in Git)
+├── .env.example              # Example environment variables
+└── README.md                 # This file
 ```
 
-## Configuration
+## Accessing Services
 
-Configuration is managed through environment variables:
+- **Airflow Web UI**: http://localhost:8080
+- **Visualization Server**: http://localhost:8090
+- **PostgreSQL Database**: localhost:5432
 
-| Variable | Description              | Default       |
-| -------- | ------------------------ | ------------- |
-| DB_HOST  | PostgreSQL host          | localhost     |
-| DB_PORT  | PostgreSQL port          | 5432          |
-| DB_NAME  | PostgreSQL database name | earthquake_db |
-| DB_USER  | PostgreSQL username      | postgres      |
-| DB_PASS  | PostgreSQL password      | postgres      |
-
-## ETL Pipeline Details
+## Data Pipeline Process
 
 The ETL pipeline consists of the following steps:
 
-1. **Extract**: Fetch earthquake data from the USGS API for the last 15 days
+1. **Extract**: Fetch earthquake data from the USGS API for the last 15 days (configurable)
 2. **Transform**: Process the JSON response and extract relevant earthquake information
 3. **Load**: Store the processed data in a PostgreSQL database
+4. **Analyze**: Create aggregations and prepared views
+5. **Visualize**: Generate visualizations available through the viz-server
 
 The pipeline runs in these sequential steps:
 
@@ -119,16 +150,19 @@ The pipeline runs in these sequential steps:
 # Apply database migrations
 alembic upgrade head
 
-# Process earthquake data
+# Process earthquake data (extract from USGS API)
 python -m app.etl.process_earthquake_data
 
 # Load data to database
 python -m app.etl.load_data
+
+# Transform data for analysis
+python -m app.etl.transform_data
 ```
 
 ## Database Schema
 
-The database uses a simple schema to store earthquake data:
+The database uses the following schema to store earthquake data:
 
 | Column    | Type       | Description                 |
 | --------- | ---------- | --------------------------- |
@@ -167,56 +201,47 @@ poetry run alembic revision --autogenerate -m "description of changes"
 poetry run alembic upgrade head
 ```
 
-## Data Files
+### Creating or Modifying Airflow DAGs
 
-Data files (\*.csv) are not tracked in this repository. The ETL pipeline will
-generate these files in the `data/` directory. These files are excluded from
-version control to:
+Add or modify DAG files in the `dags/` directory. The Airflow scheduler will automatically detect and load these changes.
 
-1. Avoid storing large files in Git
-2. Prevent accidentally committing sensitive data
-3. Keep the repository clean
+### Customization
 
-The data directory structure is preserved with `.gitkeep` files.
+- Modify the number of days to process by changing the `PROCESS_DAYS` environment variable
+- Add custom Airflow DAGs in the `dags` directory
+- Extend the ETL process by modifying the Python scripts in `app/etl/`
 
 ## Troubleshooting
 
-### Database Connection Issues
+### Common Issues
 
-If you encounter database connection issues:
+- **Database Connection Failures**: Ensure PostgreSQL is healthy with `docker ps` and check logs with `docker logs earthquake_db`
+- **Airflow Initialization Errors**: Check the airflow-init logs with `docker logs analyst_builder_pipelines-airflow-init-1`
+- **Version Warning**: The warning about obsolete `version` attribute can be ignored or you can remove the `version` key from Docker Compose files
 
-- Check if the PostgreSQL container is running: `docker-compose ps`
-- Verify the environment variables match your database configuration
-- Check the PostgreSQL logs: `docker-compose logs postgres`
-
-### ETL Process Failures
-
-If the ETL process fails:
-
-- Check the application logs: `docker-compose logs etl_app`
-- Ensure you have internet connectivity to access the USGS API
-- Verify the database migrations have been applied
-
-## Maintenance
-
-### Updating Dependencies
+### Restarting Services
 
 ```bash
-# Update all dependencies
-poetry update
+# Restart Airflow services
+docker-compose -f docker-compose-airflow.yml down
+docker-compose -f docker-compose-airflow.yml up -d
 
-# Update a specific dependency
-poetry update package-name
+# Restart standalone ETL
+docker-compose down
+docker-compose up -d
 ```
 
-### Running the Pipeline Manually
+## Development
 
-```bash
-# In Docker
-docker-compose run --rm etl_app python -m app.etl.process_earthquake_data
-docker-compose run --rm etl_app python -m app.etl.load_data
+To make changes to the pipeline:
 
-# Locally with Poetry
-poetry run python -m app.etl.process_earthquake_data
-poetry run python -m app.etl.load_data
-```
+1. Modify code in the `app` directory
+2. For database schema changes, create a new Alembic migration:
+   ```bash
+   docker exec -it earthquake_etl alembic revision --autogenerate -m "description"
+   ```
+3. Rebuild and restart containers:
+   ```bash
+   docker-compose build
+   docker-compose up -d
+   ```

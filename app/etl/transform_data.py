@@ -34,7 +34,7 @@ def delete_old_records(conn, start_date, end_date):
 
 
 def transform_earthquake(conn, start_date, end_date):
-    """Transform earthquake data and load it into the stage_earthquakes table using a different approach."""
+    """Transform earthquake data and load it into the stage_earthquakes table with explicit timestamp handling."""
     try:
         logger.info(f"Transforming earthquake data between {start_date} and {end_date}")
         start_datetime = datetime.fromisoformat(start_date)
@@ -42,14 +42,14 @@ def transform_earthquake(conn, start_date, end_date):
 
         # First, let's fetch the earthquake data
         fetch_sql = """
-            SELECT time, place, magnitude, latitude, longitude
+            SELECT time, place, magnitude, latitude, longitude, depth
             FROM earthquakes 
             WHERE to_timestamp(time / 1000) >= %s AND to_timestamp(time / 1000) <= %s
         """
 
         # Log the SQL query for debugging
         logger.info(f"Fetch SQL: {fetch_sql}")
-        logger.info(f"Params: {start_datetime}, {end_datetime}")
+        logger.info(f"Date range parameters: {start_datetime} to {end_datetime}")
 
         cur = conn.cursor()
         cur.execute(fetch_sql, (start_datetime, end_datetime))
@@ -60,12 +60,26 @@ def transform_earthquake(conn, start_date, end_date):
         # Now insert the transformed data one by one
         records_inserted = 0
         for row in rows:
-            time, place, magnitude, latitude, longitude = row
+            time_ms, place, magnitude, latitude, longitude, depth = row
 
-            # Transform the data
-            dt = datetime.fromtimestamp(time / 1000)
+            # Transform the timestamp (milliseconds since epoch) to a datetime
+            # This is equivalent to: SELECT to_timestamp(time / 1000) in SQL
+            try:
+                # Convert milliseconds to seconds and create datetime
+                time_sec = time_ms / 1000
+                dt = datetime.fromtimestamp(time_sec)
 
-            # Extract region
+                # Log a sample of the conversions for verification
+                if records_inserted < 5:  # Log only the first 5 conversions
+                    logger.info(
+                        f"Timestamp conversion: {time_ms} ms → {time_sec} sec → {dt.isoformat()}"
+                    )
+            except Exception as ts_err:
+                logger.error(f"Error converting timestamp {time_ms}: {ts_err}")
+                # Use current time as fallback
+                dt = datetime.now()
+
+            # Extract region and location from place
             if " of " in place:
                 region = place.split(" of ")[0].strip()
                 location = place.split(" of ")[1].strip()
@@ -78,14 +92,20 @@ def transform_earthquake(conn, start_date, end_date):
 
             # Insert into stage table
             insert_sql = """
-                INSERT INTO stage_earthquakes (dt, region, place, magnitude, latitude, longitude)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO stage_earthquakes 
+                (dt, region, place, magnitude, latitude, longitude, depth, raw_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
 
             cur.execute(
-                insert_sql, (dt, region, location, magnitude, latitude, longitude)
+                insert_sql,
+                (dt, region, location, magnitude, latitude, longitude, depth, time_ms),
             )
             records_inserted += 1
+
+            # Log progress for large datasets
+            if records_inserted % 1000 == 0:
+                logger.info(f"Processed {records_inserted} records so far...")
 
         conn.commit()
         cur.close()
@@ -145,7 +165,7 @@ def get_earthquake_stats(conn):
 
 
 def ensure_stage_table_exists(conn):
-    """Ensure the stage_earthquakes table exists."""
+    """Ensure the stage_earthquakes table exists with raw_time column."""
     try:
         logger.info("Checking if stage_earthquakes table exists")
         create_table_sql = """
@@ -157,14 +177,47 @@ def ensure_stage_table_exists(conn):
                 magnitude FLOAT,
                 latitude FLOAT,
                 longitude FLOAT,
+                depth FLOAT,
+                raw_time BIGINT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """
         cur = conn.cursor()
         cur.execute(create_table_sql)
+
+        # Check if raw_time column exists, if not add it
+        check_column_sql = """
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'stage_earthquakes' AND column_name = 'raw_time'
+        """
+        cur.execute(check_column_sql)
+        if not cur.fetchone():
+            logger.info("Adding raw_time column to stage_earthquakes table")
+            alter_table_sql = """
+                ALTER TABLE stage_earthquakes 
+                ADD COLUMN raw_time BIGINT
+            """
+            cur.execute(alter_table_sql)
+
+        # Check if depth column exists, if not add it
+        check_column_sql = """
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'stage_earthquakes' AND column_name = 'depth'
+        """
+        cur.execute(check_column_sql)
+        if not cur.fetchone():
+            logger.info("Adding depth column to stage_earthquakes table")
+            alter_table_sql = """
+                ALTER TABLE stage_earthquakes 
+                ADD COLUMN depth FLOAT
+            """
+            cur.execute(alter_table_sql)
+
         conn.commit()
         cur.close()
-        logger.info("Stage table is ready")
+        logger.info("Stage table is ready with all required columns")
     except Exception as e:
         logger.error(f"Error ensuring stage table exists: {e}")
         conn.rollback()
@@ -195,7 +248,7 @@ def main():
         conn = psycopg2.connect(**db_params)
 
         try:
-            # Ensure stage table exists
+            # Ensure stage table exists with all required columns
             ensure_stage_table_exists(conn)
 
             # Delete old records in the date range

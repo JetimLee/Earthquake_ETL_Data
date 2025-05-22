@@ -13,10 +13,13 @@ pandas = "^2.2.3"
 psycopg2 = "^2.9.10"
 alembic = "^1.15.2"
 python-dotenv = "^1.0.0"  # Keep only this one, not dotenv
-sqlalchemy = "^2.0.23"
+sqlalchemy = ">=1.4.28,<2.0"
 numpy = "^1.26.3"
 pytz = "^2024.1"
 colorama = "^0.4.6"
+folium = "^0.19.6"
+matplotlib = "^3.10.3"
+psycopg2-binary = "^2.9.10"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"

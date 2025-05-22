@@ -1,0 +1,96 @@
+version: "3.8"
+
+x-airflow-common:
+  &airflow-common # Remove the image line to avoid conflicts with the build directive
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.airflow
+  environment:
+    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+    - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASS:-airflow}@postgres/airflow
+    - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY:-}
+    - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
+    - AIRFLOW__CORE__LOAD_EXAMPLES=false
+    - AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS=false
+    - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=true
+    - AIRFLOW__CORE__LOGGING_LEVEL=INFO
+    # Hot reloading settings
+    - AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL=10 # Scan DAGs folder every 10 seconds
+    - AIRFLOW__CORE__MIN_FILE_PROCESS_INTERVAL=0 # Process each file every time it's scanned
+    # ETL connection settings
+    - DB_HOST=postgres
+    - DB_NAME=${DB_NAME:-earthquake_db}
+    - DB_USER=${DB_USER:-postgres}
+    - DB_PASS=${DB_PASS:-postgres}
+    - DB_PORT=${DB_PORT:-5432}
+    - PROCESS_DAYS=${PROCESS_DAYS:-15}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./app:/opt/airflow/app
+    - ./alembic:/opt/airflow/alembic
+    - ./alembic.ini:/opt/airflow/alembic.ini
+    - ./data:/opt/airflow/data
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: earthquake_db
+    env_file: .env
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASS:-postgres}
+      - POSTGRES_DB=${DB_NAME:-earthquake_db}
+      # This list should not include the default DB (POSTGRES_DB) to avoid errors
+      - POSTGRES_MULTIPLE_DATABASES=airflow
+      - AIRFLOW_DB_USER=${AIRFLOW_DB_USER:-airflow}
+      - AIRFLOW_DB_PASS=${AIRFLOW_DB_PASS:-airflow}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command: -c "sleep 15 && airflow db init && airflow users create --username ${AIRFLOW_USER:-admin} --password ${AIRFLOW_PASS:-admin} --firstname Admin --lastname User --role Admin --email admin@example.com"
+    restart: on-failure
+
+  viz-server:
+    image: nginx:alpine
+    ports:
+      - "8090:80"
+    volumes:
+      - ./data/visualizations:/usr/share/nginx/html
+    depends_on:
+      - airflow-scheduler
+
+volumes:
+  postgres_data:

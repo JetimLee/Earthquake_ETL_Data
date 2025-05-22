@@ -43,6 +43,8 @@ class StageEarthquake(Base):
     magnitude = Column(Float)
     latitude = Column(Float)
     longitude = Column(Float)
+    depth = Column(Float)
+    raw_time = Column(BigInteger)
     created_at = Column(DateTime, default=func.now())
 
     def __repr__(self):

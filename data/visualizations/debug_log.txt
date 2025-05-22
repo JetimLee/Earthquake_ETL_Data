@@ -1,0 +1,8 @@
+Debug log started at 2025-05-20 23:15:35.551502
+2025-05-20 23:15:35.551950: Importing required libraries
+2025-05-20 23:15:35.552668: Error in visualization task: No module named 'matplotlib'
+Traceback (most recent call last):
+  File "/opt/airflow/dags/earthquake_etl_dag.py", line 82, in generate_earthquake_visualizations
+    import matplotlib
+ModuleNotFoundError: No module named 'matplotlib'
+
